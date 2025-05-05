@@ -401,6 +401,7 @@ cc_library(
         ":rdma_verbs_fixture",
         ":system_libibverbs",
         "//internal:verbs_attribute",
+        "//public:introspection",
         "//public:rdma_memblock",
         "//public:status_matchers",
         "//public:verbs_helper_suite",

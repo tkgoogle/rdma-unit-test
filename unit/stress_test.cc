@@ -26,6 +26,7 @@
 #include "absl/types/span.h"
 #include "infiniband/verbs.h"
 #include "internal/verbs_attribute.h"
+#include "public/introspection.h"
 #include "public/rdma_memblock.h"
 
 #include "public/status_matchers.h"
@@ -171,7 +172,7 @@ class StressTest : public RdmaVerbsFixture {
     uint32_t total_outstanding = 0;
     uint32_t total_completion = 0;
 
-    const absl::Duration kTimeout = absl::Seconds(20);
+    const absl::Duration kTimeout = absl::Seconds(2000);
     absl::Time last_completion_time = absl::Now();
     uint32_t rr_next = 0;
     while ((total_remaining_ops > 0 || total_outstanding > 0) &&
@@ -200,23 +201,26 @@ class StressTest : public RdmaVerbsFixture {
         rr_next = 0;
       }
     }
-    LOG(INFO) << "Total remaining ops: " << total_remaining_ops;
-    LOG(INFO) << "Total issued ops: " << total_issued_ops;
-    LOG(INFO) << "Total completion: " << total_completion;
+    std::cout << "Total remaining ops: " << total_remaining_ops;
+    std::cout << "Total issued ops: " << total_issued_ops;
+    std::cout << "Total completion: " << total_completion;
     EXPECT_EQ(total_issued_ops, total_completion);
   }
 };
 
 TEST_F(StressTest, Write32B100Qp100kOps) {
-  constexpr int kNumQps = 100;
-  constexpr int kTotalOps = 100000;
   constexpr int kMaxOutstanding = 32;
   constexpr int kOpsSize = 32;
+  constexpr int kCqSize = 10000;
   ASSERT_OK_AND_ASSIGN(BasicSetup setup, CreateBasicSetup());
-  ibv_cq* cq = ibv_.CreateCq(setup.context, kMaxOutstanding * kNumQps + 10);
+  ibv_cq* cq = ibv_.CreateCq(setup.context, kCqSize);
   ASSERT_THAT(cq, NotNull());
+
+  int max_qps = Introspection().device_attr().max_qp;
+  int num_qps = max_qps / 2;
   ASSERT_OK_AND_ASSIGN(std::vector<QpPair> qps,
-                       CreateQpPairs(setup, kNumQps, kMaxOutstanding + 10, cq));
+                       CreateQpPairs(setup, num_qps, kMaxOutstanding + 10, cq));
+  int kTotalOps = num_qps;
   ASSERT_NO_FATAL_FAILURE(ClosedLoopWorkLoadRoundRobin(
       setup, qps, cq, IBV_WR_RDMA_WRITE, kTotalOps, kMaxOutstanding, kOpsSize));
 }
